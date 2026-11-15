@@ -1,0 +1,101 @@
+{
+  "task": "immediate dominator / must-pass upstream lineage analysis",
+  "runtime": {
+    "language": "Python",
+    "interpreter": "python3",
+    "version_tested": "3.11.2",
+    "third_party_dependencies": [],
+    "standard_library_only": true
+  },
+  "core": {
+    "module": "dominance",
+    "function": "analyze(n, root, edges)",
+    "signature": "analyze(n: int, root: int, edges: Iterable[Sequence[int]]) -> list[Optional[int]]",
+    "returns": "length-n list; result[root]=root; None if unreachable from root; otherwise the immediate (direct) dominator of v",
+    "input_contract": {
+      "nodes": "integers 0 .. n-1",
+      "n_bounds": "1 <= n <= 200000",
+      "edge_bounds": "0 <= len(edges) <= 500000",
+      "allowed": "directed cycles, self loops, parallel edges; edges is only read, never modified"
+    },
+    "algorithm": "Lengauer-Tarjan immediate dominators with path compression; iterative (explicit-stack) DFS and iterative evaluate(), so no recursion-limit dependence",
+    "complexity": {
+      "time": "O((n + len(edges)) log(n + len(edges) + 2))  [Lengauer-Tarjan near-linear bound, also within O((n+m) log n)]",
+      "extra_space": "O(n + len(edges))"
+    },
+    "forbidden_techniques_not_used": [
+      "per-node vertex deletion search",
+      "path enumeration",
+      "storing the full dominator set of every node",
+      "raising the recursion limit to survive long chains"
+    ]
+  },
+  "entrypoints": {
+    "full_verification": {
+      "command": "cd /workspace && python3 verify.py",
+      "exit_code": "0 on success, 1 on any failure",
+      "covers": [
+        "the stated example",
+        "structural cases: cycles, unreachable regions, entry back edges, self loops, parallel edges, long chain n=20000",
+        "maximum chain n=200000 run with sys.setrecursionlimit(100), and root placed mid-chain",
+        "exhaustive cross-check against the vertex-deletion reference for every graph with n<=4 and <=4 edges, every root (10870 cases)",
+        "4000 sampled graphs with n=5..7 vs the vertex-deletion reference",
+        "60 random medium graphs (n<=120) vs independent bitset dataflow reference",
+        "API contract (n=1, isolated root, generator input, input not mutated)",
+        "scale run n=200000 with 500000 edges, reporting time and peak memory",
+        "adversarial deep-path case: 100000-node chain plus a back edge from the last node to every rootward node (n=100000, m=199998)"
+      ]
+    },
+    "lineage_demo": {
+      "command": "cd /workspace && python3 demo.py",
+      "exit_code": "0 on success, 1 on any failure",
+      "covers": "realistic warehouse lineage graph with a dbt-style circular dependency, a redundant side-door edge, an entry back edge, an unreachable orphan pipeline and a 40-node linear tail; prints idom vs naive BFS parent per artifact and audits every reported idom by vertex deletion"
+    },
+    "deletion_reference_only": {
+      "command": "cd /workspace && python3 -c \"from reference_dominance import brute_force_idom as b; print(b(5,0,[(0,1),(0,2),(1,3),(2,3)]))\"",
+      "expected_stdout": "[0, 0, 0, 0, None]"
+    },
+    "stated_example": {
+      "command": "cd /workspace && python3 -c \"from dominance import analyze; print(analyze(5,0,[(0,1),(0,2),(1,3),(2,3)]))\"",
+      "expected_stdout": "[0, 0, 0, 0, None]"
+    }
+  },
+  "reference_checks": {
+    "module": "reference_dominance",
+    "brute_force_idom": "definitional check for small graphs: u strictly dominates v iff deleting u makes v unreachable from root; immediate dominator is the strict dominator whose strict-dominator set is exactly one smaller (strict dominators form a chain)",
+    "bitset_idom": "iterative dominator dataflow over Python integer bitsets; independent of DFS numbering, semidominators and path compression; used for medium graphs",
+    "dominates": "single-pair definitional predicate used to audit reported answers"
+  },
+  "measured_results": {
+    "environment": "linux, CPython 3.11.2, single core",
+    "scale_input": {
+      "n": 200000,
+      "edges": 500000,
+      "structure": "50000-node linear chain 0->1->...->49999, plus 450001 random edges whose targets start at node 50000 so chain answers stay exact",
+      "reachable_nodes": 190942
+    },
+    "analyze_wall_time_seconds_no_profiler": 2.11,
+    "analyze_wall_time_seconds_under_tracemalloc": 5.83,
+    "analyze_peak_traced_memory_mb": 81.2,
+    "process_peak_rss_mb_including_input_list": 162,
+    "adversarial_deep_back_edges": {
+      "n": 100000,
+      "edges": 199998,
+      "analyze_wall_time_seconds": 0.19
+    },
+    "verification_suite_wall_time_seconds": 10.0,
+    "verification_suite_checks": 29,
+    "verification_suite_peak_rss_mb": 306.8
+  },
+  "verification_status": {
+    "full_verification_exit_code": 0,
+    "last_run": "python3 verify.py -> ALL CHECKS PASSED",
+    "demo": "python3 demo.py -> DEMO OK",
+    "files": [
+      "dominance.py",
+      "reference_dominance.py",
+      "verify.py",
+      "demo.py"
+    ]
+  }
+}
